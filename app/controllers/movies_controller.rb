@@ -1,5 +1,8 @@
 class MoviesController < ApplicationController
 
+def movie_params
+    params.require(:movie).permit(:title, :rating, :description, :release_date)
+  end
 
   def show
     id = params[:id] # retrieve movie ID from URI route
@@ -7,33 +10,25 @@ class MoviesController < ApplicationController
     # will render app/views/movies/show.<extension> by default
   end
 
+  def get_ratings
+    Movie.select(:rating).map(&:rating).uniq
+  end
+    
   def index
-    @all_ratings = Movie.all_ratings
-
-    redirect = false
-
-    if params[:ratings]
-      session[:ratings] = params[:ratings]
+    @all_ratings = get_ratings
+    #initialize session ratings if it is not defined yet
+    session[:ratings] = @all_ratings unless session.has_key?(:ratings)
+    #get ratings from parameters if they are given
+    session[:ratings] = params[:ratings].keys if params.has_key?(:ratings) and 
+                                                    !params[:ratings].empty?
+    @selected = session[:ratings]
+    #get sortby if it is given
+    session[:sortby] = params[:sortby] if params.has_key?(:sortby)
+    if session.has_key?(:sortby)
+      @movies = Movie.order(session[:sortby]).where(:rating => @selected)
     else
-      redirect = true
+      @movies = Movie.where(:rating => @selected)
     end
-    session[:ratings] = session[:ratings] || Hash[ @all_ratings.map {|ratings| [ratings, 1]} ]
-    @ratings = session[:ratings]
-
-    if params[:category]
-      session[:category] = params[:category]
-    else
-      redirect = true
-    end
-    session[:category] = session[:category] || ""
-    @category = session[:category]
-
-    if redirect
-      flash.keep
-      redirect_to movies_path({:category => @category, :ratings => @ratings})
-    end
-
-    @movies = Movie.where("rating in (?)", @ratings.keys).find(:all, :order => @category)
   end
 
   def new
@@ -63,13 +58,7 @@ class MoviesController < ApplicationController
     flash[:notice] = "Movie '#{@movie.title}' deleted."
     redirect_to movies_path
   end
- 
-  def same_director
-    movie = Movie.find(params[:id])
-    redirect_to movies_path if movie.director.empty?
 
-    flash[:notice] = "'#{movie.title}' has no director info"
-    @movies = movie.same_director
-    redirect_to movies_path if @movies.empty?
-  end
 end
+
+  
