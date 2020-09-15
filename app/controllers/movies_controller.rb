@@ -5,12 +5,6 @@ class MoviesController < ApplicationController
   end
   
   
-  def initialize 
-    @all_ratings = Movie.all_ratings
-    super
-  end
-  
-  
   def show
     id = params[:id] # retrieve movie ID from URI route
     @movie = Movie.find(id) # look up movie by unique ID
@@ -18,42 +12,44 @@ class MoviesController < ApplicationController
   end
 
   def index
-    redirect = false
+    #movie ratings
+    @all_ratings = Movie.get_possible_ratings
     
-     if params[:sort]
-            @sorting = params[:sort]
-        elsif session[:sort]
-            @sorting = session[:sort]
-            redirect = true
-     end
+    #update ratings
+    unless params[:ratings].nil?
+      @filtered_ratings = params[:ratings]
+      session[:filtered_ratings]=@filtered_ratings
+    end
+      
+    #if user has a sorting
+    if params[:sorting].nil?
+    else
+      session[:sorting] = params[:sorting]
+    end
     
-     if params[:ratings]
-            @ratings = params[:ratings]
-        elsif session[:ratings]
-            @ratings = session[:ratings]
-            redirect = true
-        else
-            @all_ratings.each do |rat|
-                (@ratings ||= { })[rat] = 1
-            end
-            redirect = true
-     end
-
-        if redirect
-            redirect_to movies_path(:sort => @sorting, :ratings => @ratings)
-        end
-
-        Movie.find(:all, :order => @sorting ? @sorting : :id).each do |mv|
-            if @ratings.keys.include? mv[:rating]
-                (@movies ||= [ ]) << mv
-            end
-        end
-
-        session[:sort]    = @sorting
-        session[:ratings] = @ratings
-  
-        
-   # @movies = Movie.all
+    if params[:sorting].nil?&& params[:ratings].nil? && session[:filtered_ratings]
+      @filtered_ratings = session[:filtered_ratings]
+      @sorting = session[:sorting]
+      flash.keep 
+      redirect_to movies_path({order_by:@sorting, ratings:@filtered_ratings})
+    end
+    
+    @movies = Movie.all
+    
+    #filter movies based on rating
+    if session[:filtered_ratings]
+      @movies = @movies.select { |movie| session[:filtered_ratings].include? movie.rating}
+    end 
+    #title sort 
+    if session[:sorting] == "title"
+      @movies = @movies.sort!{ |a,b| a.title <=> b.title}
+      @movie_highlight = "hilite"
+    elsif session[:sorting] == "release_date"
+      @movies = @movies.sort!{|a,b| a.release_date <=> b.release_date}
+      @date_highlight = "hilite"
+    end
+    
+      
   end
 
   def new
@@ -83,5 +79,5 @@ class MoviesController < ApplicationController
     flash[:notice] = "Movie '#{@movie.title}' deleted."
     redirect_to movies_path
   end
-
+ 
 end
